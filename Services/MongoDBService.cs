@@ -1,5 +1,6 @@
 ﻿using SeeSharpMovies.Models;
 using MongoDB.Driver;
+using MongoDB.Driver.Search;
 
 namespace SeeSharpMovies.Services;
 
@@ -41,5 +42,27 @@ public class MongoDBService : IMongoDBService
         var movie = _movies.Find(movie => movie.Id == id).FirstOrDefault();
 
         return movie;
-    }       
+    }
+
+    public IEnumerable<Movie> SearchMovieByTitle(string title)
+    {
+        SearchFuzzyOptions fuzzyOptions = new SearchFuzzyOptions
+        {
+            MaxEdits = 1,
+            PrefixLength = 1,
+            MaxExpansions = 256
+        };
+
+        var movies = 
+            _movies
+                .Aggregate()
+                .Search(
+                    Builders<Movie>.Search.Autocomplete(movie => movie.Title,title, fuzzy: fuzzyOptions), 
+                    indexName: "mflix_movies")
+                .Project<Movie>(
+                    Builders<Movie>.Projection.Exclude(movie => movie.Id))
+                .ToList();
+
+        return movies;
+    }
 }

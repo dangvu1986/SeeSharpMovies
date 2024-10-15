@@ -3,8 +3,14 @@
 @rendermode InteractiveServer
 
 <header class="top-bar">
-        <a href="/">See Sharp Movies</a>
-    </header>
+    <a href="/">See Sharp Movies</a>
+</header>
+<div class="form-inline search-bar">
+    <input class="form-control mr-sm-2"
+           type="search" placeholder="Search"
+           aria-label="Search"
+           @oninput="OnSearchInput" @bind="searchTerm">
+</div>
 
 <div class="moviecard-container">
     @foreach (var movie in movies)
@@ -18,38 +24,71 @@
 <div class="pagination-controls">
     <button disabled="@isPreviousDisabled" @onclick="GoToPreviousPage"> Previous</button>
     <span>Page @currentPage</span>
-    <button @onclick="GoToNextPage" disabled="@isNextDisabled">Next</button>  
+    <button @onclick="GoToNextPage" disabled="@isNextDisabled">Next</button>
 </div>
 
 @code {
-   
+
     bool isPreviousDisabled;
     bool isNextDisabled;
     int currentPage = 2;
-    int pageSize = 25; 
+    int pageSize = 25;
 
-   
+    string searchTerm;
+    Timer debounceTimer;
+    int debounceInterval = 200;
+
     IEnumerable<Movie> movies;
 
     private void GoToPreviousPage()
     {
-       
+
         if (currentPage > 1)
         {
-            currentPage--;           
+            currentPage--;
             movies = MongoDBService.GetMoviesPerPage(currentPage, pageSize);
         }
     }
 
     private void GoToNextPage()
     {
-      
+
         currentPage++;
         movies = MongoDBService.GetMoviesPerPage(currentPage, pageSize);
     }
 
     protected override async Task OnInitializedAsync()
     {
-        movies = MongoDBService.GetMoviesPerPage(currentPage, pageSize);        
+        movies = MongoDBService.GetMoviesPerPage(currentPage, pageSize);
+    }
+
+    private void SearchMovies()
+    {
+        movies = string.IsNullOrWhiteSpace(searchTerm) ?
+            MongoDBService.GetAllMovies() :
+            MongoDBService.SearchMovieByTitle(searchTerm);
+    }
+
+    void DebounceSearch(object state)
+    {
+        if (string.IsNullOrWhiteSpace(searchTerm))
+        {
+            SearchMovies();
+        }
+        else
+        {
+            InvokeAsync(() =>
+            {
+                SearchMovies();
+                StateHasChanged();
+            });
+        }
+    }
+
+    void OnSearchInput(ChangeEventArgs e)
+    {
+        searchTerm = e.Value.ToString();
+        debounceTimer?.Dispose();
+        debounceTimer = new Timer(DebounceSearch, null, debounceInterval, Timeout.Infinite);
     }
 }
